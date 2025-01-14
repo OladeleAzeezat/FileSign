@@ -1,23 +1,31 @@
 ﻿namespace FileSign.Controllers
 {
     using FileSign.Models;
+    using Microsoft.AspNetCore.Authorization;
+    using Microsoft.AspNetCore.Identity;
     using Microsoft.AspNetCore.Mvc;
     using Microsoft.EntityFrameworkCore;
+    using Microsoft.IdentityModel.Tokens;
+    using System.IdentityModel.Tokens.Jwt;
+    using System.Security.Claims;
     using System.Security.Cryptography;
     using System.Text;
 
+    [Authorize]
     [ApiController]
     [Route("api/[controller]")]
     public class UserController : ControllerBase
     {
         private readonly AppDbContext _context;
+        private readonly IConfiguration _configuration;
 
-        public UserController(AppDbContext context)
+        public UserController(AppDbContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
         }
 
-        [HttpPost("sign-in")]
+        [HttpPost("sign-up")]
         public async Task<IActionResult> SignIn([FromBody] User user)
         {
             // Check if user already exists
@@ -35,49 +43,64 @@
             return Ok("User registered successfully.");
         }
 
+        [AllowAnonymous]
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] User loginRequest)
+        public async Task<IActionResult> Login(string email, string password)
         {
             // Check if user exists
-            var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == loginRequest.Email);
-            if (user == null)
-                return BadRequest("Invalid email or password.");
+            var user = await _context.Users.SingleOrDefaultAsync(u => u.Email == email &&
+                                                                      u.Password == password);
+            if (user != null)
+            {
+                // Generate JWT token
+                var token = GenerateToken(user.Username);
+                return Ok(token);
+            }
+            return Unauthorized("Invalid credentials");
 
-            // Verify password
-            //if (!VerifyPassword(loginRequest.PasswordHash, user.PasswordHash, user.PasswordSalt))
-            //    return BadRequest("Invalid email or password.");
-
-            return Ok("Login successful.");
         }
 
-        //private string HashPassword(string password, out byte[] salt)
-        //{
-        //    using var hmac = new HMACSHA256();
-        //    salt = hmac.Key; // Generate a random salt (key)
-        //    var hash = hmac.ComputeHash(Encoding.UTF8.GetBytes(password));
-        //    return Convert.ToBase64String(hash);
-        //}
 
-        //private bool VerifyPassword(string password, string storedHash, byte[] salt)
-        //{
-        //    using var hmac = new HMACSHA256(salt); // Use the stored salt
-        //    var computedHash = hmac.ComputeHash(Encoding.UTF8.GetBytes(password));
-        //    return Convert.ToBase64String(computedHash) == storedHash;
-        //}
+        [Route("api/generateToken")]
+        [HttpPost]
+        public IActionResult GenerateToken(string Username)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(Username))
+                {
+                    return BadRequest(new { Message = "Username is required" });
+                }
+
+                var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWTKey:Secret"]));
+                var tokenExpiryTime = Convert.ToInt64(_configuration["JWTKey:TokenExpiryTimeInSeconds"]);
+
+                var tokenDescriptor = new SecurityTokenDescriptor
+                {
+                    Issuer = _configuration["JWTKey:ValidIssuer"],
+                    Audience = _configuration["JWTKey:ValidAudience"],
+                    Expires = DateTime.UtcNow.AddSeconds(tokenExpiryTime),
+                    SigningCredentials = new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256),
+                    Subject = new ClaimsIdentity(new Claim[]
+                    {
+                new Claim(ClaimTypes.Name, Username)
+                    }),
+                };
+
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var token = tokenHandler.CreateToken(tokenDescriptor);
+                var tokenString = tokenHandler.WriteToken(token);
+
+                return Ok(new { Token = tokenString });
+            }
+            catch (Exception ex)
+            {
+                // Log the exception for debugging
+                return BadRequest(new { Message = "Error generating token", Details = ex.Message });
+            }
+        }
 
 
-        //private string HashPassword(string password)
-        //{
-        //    using var hmac = new HMACSHA256();
-        //    return Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(password)));
-        //}
-
-        //private bool VerifyPassword(string password, string storedHash)
-        //{
-        //    using var hmac = new HMACSHA256();
-        //    var computedHash = Convert.ToBase64String(hmac.ComputeHash(Encoding.UTF8.GetBytes(password)));
-        //    return computedHash == storedHash;
-        //}
     }
 
 }
