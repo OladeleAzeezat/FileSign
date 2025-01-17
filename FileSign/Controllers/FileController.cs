@@ -1,10 +1,14 @@
 ﻿using FileSign.DTOs;
 using FileSign.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace FileSign.Controllers
 {
+    [Authorize]
+    [ApiController]
+    [Route("api/[controller]")]
     public class FileController : ControllerBase
     {
         private readonly AppDbContext _context;
@@ -115,6 +119,58 @@ namespace FileSign.Controllers
                 return StatusCode(500, new { message = "An error occurred while retrieving documents", error = ex.Message });
             }
         }
+
+        [HttpGet("get-documents-by-email")]
+        public async Task<IActionResult> GetDocumentsByEmail(string email)
+        {
+            if (string.IsNullOrEmpty(email))
+            {
+                return BadRequest(new { message = "Email parameter is required." });
+            }
+
+            try
+            {
+                // Fetch records from the database filtered by email
+                var documents = await _context.FileRecords
+                    .Where(doc => doc.UserEmail == email)
+                    .ToListAsync();
+
+                if (documents == null || documents.Count == 0)
+                {
+                    return NotFound(new { message = "No documents found for the provided email." });
+                }
+
+                // Map records to the DTO
+                var documentDtos = documents.Select(doc =>
+                {
+                    string fileData = null;
+
+                    // Read the file from the FilePath and convert to Base64
+                    if (!string.IsNullOrEmpty(doc.FilePath) && System.IO.File.Exists(doc.FilePath))
+                    {
+                        byte[] fileBytes = System.IO.File.ReadAllBytes(doc.FilePath);
+                        fileData = Convert.ToBase64String(fileBytes); // Encode file as Base64
+                    }
+
+                    return new DocumentWithFileDto
+                    {
+                        Id = doc.Id,
+                        FileName = doc.FileName,
+                        ContentType = doc.ContentType,
+                        UploadedAt = doc.UploadDate.ToString("yyyy-MM-dd HH:mm:ss"),
+                        FileData = fileData
+                    };
+                }).ToList();
+
+                return Ok(documentDtos);
+            }
+            catch (Exception ex)
+            {
+                // Handle errors
+                return StatusCode(500, new { message = "An error occurred while retrieving documents", error = ex.Message });
+            }
+        }
+
 
 
 

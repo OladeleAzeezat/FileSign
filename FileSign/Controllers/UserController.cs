@@ -25,6 +25,7 @@
             _configuration = configuration;
         }
 
+        [AllowAnonymous]
         [HttpPost("sign-up")]
         public async Task<IActionResult> SignIn([FromBody] User user)
         {
@@ -99,6 +100,51 @@
                 return BadRequest(new { Message = "Error generating token", Details = ex.Message });
             }
         }
+
+        [Route("api/allUsers")]
+        [HttpGet]
+        [Authorize(Roles = "Admin")] // Only Admins can access this endpoint
+        public async Task<IActionResult> GetAllUsers()
+        {
+            var users = await _context.Users.ToListAsync();
+            return Ok(users);
+        }
+
+        //[HttpGet]
+        //public async Task<IActionResult> GetAllUsers()
+        //{
+        //    try
+        //    {
+        //        // Retrieve all users from the database
+        //        var users = await _context.Users
+        //            .Select(u => new
+        //            {
+        //                u.Id,
+        //                u.Username,
+        //                u.Email,
+        //                u.Role
+        //            })
+        //            .ToListAsync();
+
+        //        // Return users as JSON response
+        //        return Ok(users);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return StatusCode(500, "An error occurred while fetching the users: " + ex.Message);
+        //    }
+        //}
+
+        //[Route("api/getAllUser")]
+        //[HttpGet]
+        //public async Task<IActionResult> GetUsers()
+        //{
+        //    if(_context.Users == null)
+        //    {
+        //        return NotFound();
+        //    }
+        //    return await _context.Users.ToListAsync();
+        //}
 
 
     }

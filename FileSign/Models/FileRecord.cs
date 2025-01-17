@@ -8,5 +8,6 @@
         public string ContentType { get; set; }
         //public byte[] FileData { get; set; }
         public DateTime UploadDate { get; set; } = DateTime.UtcNow;
+        public string UserEmail { get; set; }
     }
 }
