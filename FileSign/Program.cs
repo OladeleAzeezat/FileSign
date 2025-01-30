@@ -40,6 +40,17 @@ builder.Services.AddAuthentication(x =>
         };
     });
 
+
+// Add CORS service
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowSpecificOrigin",
+        policy => policy.WithOrigins("http://localhost:5173") // Adjust to your frontend URL
+                        .AllowAnyMethod()
+                        .AllowAnyHeader());
+});
+
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -50,6 +61,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors("AllowSpecificOrigin");
 
 app.UseAuthorization();
 
